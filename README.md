@@ -1,6 +1,6 @@
 # FHIR Duplicate Practitioner Cleanup
 
-JavaScript script intended to merge duplicate practitioner resources by way of deletion, including updating encounters references so that the deletion of the duplicated practitioner resource can take place.
+JavaScript script intended to merge duplicate practitioner resources by way of deletion, including updating Practitioner references within Encounter resources so that the deletion of the duplicated Practitioner resource can take place.
 
 ## What it does
 
