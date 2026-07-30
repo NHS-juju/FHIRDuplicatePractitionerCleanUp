@@ -5,8 +5,7 @@ JavaScript script intended to check for duplication of a FHIR Practitioner resou
 ## What it does
 
 The script:
-- accepts a professional ID as an argument
-- searches for duplicate Practitioner resources matching that ID
+- searches for duplicate Practitioner resources matching the provided Professional ID
 - identifies the Practitioner resource to keep
 - updates related Encounter resources to point to the retained Practitioner
 - deletes the duplicate Practitioner records
@@ -46,4 +45,4 @@ node src/duplicatePractitionerCleanUp.js -baseUrl https://path.to/fhir -professi
 ```
 
 ## Notes
-The script was written based on an environment that contained duplicate Practitioner resources intentionally, but these resources contained identifiers specific to a 3rd party module, which includes the professional codes, but are tagged differently to the Practitioner resources added and indended for use by the system when parsing HL7v2.x messages. The duplicates this script intended to correct were those created during issues with the HL7v2.x interface, which is why the script explicitly only targets where the `identifier.use === "usual"`
+The script was written based on an environment that contained duplicate Practitioner resources intentionally, but the duplicated resource in these instances contained identifiers specific to a 3rd party module and are not interacted with via a separate HL7 V2.x interface. This script intentionally ignores this intended duplication and only looks for duplication where both of the resources have the same ID and both are tagged `identifier.use === "usual"`
