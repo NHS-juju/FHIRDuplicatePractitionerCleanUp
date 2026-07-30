@@ -11,21 +11,46 @@
  * @author Julian Matthews <Julian.Matthews@SomersetFT.NHS.UK>
  *
  * Created        : 2026-07-17
+ * Last modified   : 2026-07-30
  */
 
-// Default params
-const baseUrl = "https://url.for.endpoint:8184/path/to/fhir";
-const token =
-  "BEARER_TOKEN_GOES_HERE";
+const supportedArgs = ["-baseurl", "-token", "-professionalid"];
+var baseUrl, token, professionalID;
 
-// Grab the professional ID from the input
-const professionalID = process.argv.slice(2)[0];
-if (!professionalID) {
+// match values from process.argv to the supported args and assign them to the corresponding variables
+process.argv.forEach((arg, index) => {
+  console.log(`Arg ${index}: ${arg}`);
+  //Skip the first two args (node and script path)
+  if (index > 1) {
+    //Match the arg to the supported args
+    const argIndex = supportedArgs.indexOf(arg.toLowerCase());
+    if (argIndex !== -1) {
+      //If the arg is found, assign the next value in process.argv to the corresponding variable
+      const value = process.argv[index + 1];
+      switch (arg.toLowerCase()) {
+        case "-baseurl":
+          baseUrl = value;
+          break;
+        case "-token":
+          token = value;
+          break;
+        case "-professionalid":
+          professionalID = value;
+          break;
+      }
+    }
+  }
+});
+
+// Check that baseUrl and token are provided
+if (!baseUrl || !token || !professionalID) {
   console.error(
-    "Error: Please provide a professional ID as the first argument. For example, 'C9999999' or '01A2345N'.",
+    "Error: Please provide both a base URL, a token, and a professional ID as arguments.",
   );
   process.exit(1);
 }
+
+// Default params
 
 // check that professionalID is a valid consultant ID (C + 7 numbers) or a valid nmc nursing pin (two digits, a letter, 4 digits, and a letter)
 const consultantIdRegex = /^C\d{7}$/;

@@ -12,10 +12,16 @@ The script:
 - deletes the duplicate Practitioner records
 
 ## Supported input formats
+For the script to operate, it requires the base URL of the fhir server, a bearer token valid for the fhir server, and the professional code that is to be checked/merged.
 
-The script accepts:
+For professional code, the script accepts:
 - consultant IDs in the format C+7 Numbers (for example, `C9999999`)
 - nursing PINs in the format NNANNNNA (for example, `01A2345N`)
+
+These are to be passed in using the following input flags:
+* -baseUrl
+* -token
+* -professionalid
 
 ## Requirements
 
@@ -25,20 +31,18 @@ The script accepts:
 
 ## Setup
 
-1. Open the script in [src/duplicatePractitionerCleanUp.js](src/duplicatePractitionerCleanUp.js).
-2. Update the FHIR base URL and bearer token values near the top of the file.
-3. Run the script from the project root.
+1. Download the script to your machine
 
 ## Usage
 
 ```bash
-node src/duplicatePractitionerCleanUp.js C9999999
+node src/duplicatePractitionerCleanUp.js -baseUrl https://path.to/fhir -professionalId C1234567 -token V2h5IHdvdWxkIHlvdSB0cnkgdG8gZGVjb2RlIHRoaXM/IFRoYXQncyBvZGQgYmVoYXZpb3VyLg==
 ```
 
 Or with a nursing PIN:
 
 ```bash
-node src/duplicatePractitionerCleanUp.js 01A2345N
+node src/duplicatePractitionerCleanUp.js -baseUrl https://path.to/fhir -professionalId C1234567 -token TmVyZA==
 ```
 
 ## Notes
