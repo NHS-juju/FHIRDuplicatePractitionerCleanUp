@@ -3,11 +3,11 @@
  *
  * Unofficial script written to:
  * * Check a given professional code for duplicate practitioner entries
- * * Identify encounters associated with the duplicated practitioner
- * * Update the encounters so that they reference the practitioner being kept
- * * Deletes the duplicate encounter
+ * * Identify Encounter and PractitionerRole resources associated with the duplicated practitioner
+ * * Update the affected Encounter and PractitionerRole resources so that they reference the practitioner being kept
+ * * Deletes the duplicate Practitioner
  *
- * @summary Script to delete duplicate Practitioners, with steps to clean up encounters to enable this.
+ * @summary Script to delete duplicate Practitioners, with steps to clean up relevant Encounter and PractitionerRole resources to enable this.
  * @author Julian Matthews <Julian.Matthews@SomersetFT.NHS.UK>
  *
  **/
