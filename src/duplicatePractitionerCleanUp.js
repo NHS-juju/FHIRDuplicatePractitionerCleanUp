@@ -10,16 +10,14 @@
  * @summary Script to delete duplicate Practitioners, with steps to clean up encounters to enable this.
  * @author Julian Matthews <Julian.Matthews@SomersetFT.NHS.UK>
  *
- * Created        : 2026-07-17
- * Last modified   : 2026-07-30
  */
 
-const supportedArgs = ["-baseurl", "-token", "-professionalid"];
-var baseUrl, token, professionalID;
+// declare the args in play for this script
+const supportedArgs = ["-baseurl", "-token", "-professionalid", "-safety"];
 
 // match values from process.argv to the supported args and assign them to the corresponding variables
+var baseUrl, token, professionalID, safety;
 process.argv.forEach((arg, index) => {
-  console.log(`Arg ${index}: ${arg}`);
   //Skip the first two args (node and script path)
   if (index > 1) {
     //Match the arg to the supported args
@@ -37,22 +35,29 @@ process.argv.forEach((arg, index) => {
         case "-professionalid":
           professionalID = value;
           break;
+        case "-safety":
+          safety = 1;
+          break;
       }
     }
   }
 });
 
-// Check that baseUrl and token are provided
+// Check that mandatory vars have been provided to the script
 if (!baseUrl || !token || !professionalID) {
   console.error(
-    "Error: Please provide both a base URL, a token, and a professional ID as arguments.",
+    "Error: Please provide a base URL, a token, and a professional ID as arguments.",
   );
   process.exit(1);
 }
 
-// Default params
+// Notify if safety flag is set
+if (safety) {
+  console.log("Safety Flag Set!");
+  console.log("Script will not alter or remove any Resources!");
+}
 
-// check that professionalID is a valid consultant ID (C + 7 numbers) or a valid nmc nursing pin (two digits, a letter, 4 digits, and a letter)
+// Validate that professionalID is a valid consultant ID (C + 7 numbers) or a valid nmc nursing pin (two digits, a letter, 4 digits, and a letter)
 const consultantIdRegex = /^C\d{7}$/;
 const NursePinRegex = /^\d{2}[A-Z]\d{4}[A-Z]$/;
 
@@ -78,12 +83,12 @@ async function mergePractitioners() {
       headers,
       professionalID,
     );
-
+    // quit if we find no practitioners
     if (!practitionerBundle.entry || practitionerBundle.entry.length === 0) {
       console.error(`No practitioners found for ID ${professionalID}.`);
       return;
     }
-    // quit if nothing to merge
+    // quit if we find only 1 practitioner
     if (practitionerBundle.entry.length === 1) {
       console.error(
         `Only 1 practitioner found for ID ${professionalID}, so there is nothing to merge.`,
@@ -94,6 +99,8 @@ async function mergePractitioners() {
     console.log(
       "Checking if there are enough eligible Practitioner resources returned in the search...",
     );
+
+    // returns array of practitioner ids that have identifier.use === "usual", sorted by size
     const practArray = getUsualPractitionerIds(practitionerBundle);
 
     // quit if we are left with 1 or 0 eligble practitioners to merge
@@ -113,36 +120,50 @@ async function mergePractitioners() {
     for (const practIdToMerge of practArray.slice(1)) {
       console.log(`Merging away ${practIdToMerge}...`);
 
+      // returns fhir search bundle of encounters where the practitioner is a participant
       const encounterSearchBundle = await fetchEncounterBundle(
         headers,
         practIdToMerge,
       );
 
-      if (!encounterSearchBundle.type) {
+      // if type not in resounse, it's likely a non-FHIR response, or an error
+      if (
+        !encounterSearchBundle.type ||
+        encounterSearchBundle.type && encounterSearchBundle.type != "searchset"
+      ) {
         throw new Error(
-          `Non-FHIR response when checking for encounters for ${practIdToMerge}`,
+          `A Search checking for encounters for ${practIdToMerge} failed to return a searchset`,
         );
       }
-
-      if (
-        encounterSearchBundle.entry &&
-        encounterSearchBundle.entry.length > 0
-      ) {
-        for (const encounterItem of encounterSearchBundle.entry) {
-          await updateEncounterReferences(
-            headers,
-            encounterItem,
-            practIdToMerge,
-            practIdToKeep,
+      if (!safety) {
+        if (
+          encounterSearchBundle.entry &&
+          encounterSearchBundle.entry.length > 0
+        ) {
+          for (const encounterItem of encounterSearchBundle.entry) {
+            await updateEncounterReferences(
+              headers,
+              encounterItem,
+              practIdToMerge,
+              practIdToKeep,
+            );
+          }
+        } else {
+          console.log(
+            `No encounters found for ${practIdToMerge} - moving straight to Practitioner deletion.`,
           );
         }
+        await deletePractitioner(headers, practIdToMerge);
       } else {
+        if (encounterSearchBundle.entry) {
+          var encCount = encounterSearchBundle.entry.length;
+        } else {
+          var encCount = 0;
+        }
         console.log(
-          `No encounters found for ${practIdToMerge} - moving straight to Practitioner deletion.`,
+          `Running this script would have updated ${encCount} encounter(s) before deleting Practitioner resource ${practIdToMerge}`,
         );
       }
-
-      await deletePractitioner(headers, practIdToMerge);
     }
   } catch (error) {
     console.error(error.message);
