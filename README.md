@@ -1,6 +1,6 @@
 # FHIR Duplicate Practitioner Cleanup
 
-JavaScript script intended to merge duplicate practitioner resources by way of deletion, including updating Practitioner references within Encounter resources so that the deletion of the duplicated Practitioner resource can take place.
+JavaScript script intended to merge duplicate practitioner resources by way of deletion, including updating Practitioner references within Encounter and PractitionerRole resources so that the deletion of the duplicated Practitioner resource can take place.
 
 ## What it does
 
@@ -8,6 +8,7 @@ The script:
 - searches for duplicate Practitioner resources matching the provided Professional ID
 - identifies the Practitioner resource to keep based on the resource id size.
 - updates related Encounter resources to point to the retained Practitioner
+- updates related PractitionerRole resources to point to the retained Practitioner
 - deletes the duplicate Practitioner record(s)
 
 ## Required input values
@@ -24,7 +25,7 @@ For professional code, the script accepts:
 - nursing PINs in the format NNANNNNA (for example, `01A2345N`)
 
 # Put the safety on!
-If you pass in the flag `-safety` then the script will not make any changes but will instead tell you the number of encounters that could have been updated and which Practitioner resource would have been deleted.
+If you pass in the flag `-safety` then the script will not make any changes but will instead tell you the number of encounter and PractitionerRole resources that could have been updated and which Practitioner resource would have been deleted.
 
 ## Requirements
 
