@@ -10,7 +10,7 @@
  * @summary Script to delete duplicate Practitioners, with steps to clean up encounters to enable this.
  * @author Julian Matthews <Julian.Matthews@SomersetFT.NHS.UK>
  *
- */
+ **/
 
 // declare the args in play for this script
 const supportedArgs = ["-baseurl", "-token", "-professionalid", "-safety"];
@@ -129,12 +129,29 @@ async function mergePractitioners() {
       // if type not in resounse, it's likely a non-FHIR response, or an error
       if (
         !encounterSearchBundle.type ||
-        encounterSearchBundle.type && encounterSearchBundle.type != "searchset"
+        (encounterSearchBundle.type &&
+          encounterSearchBundle.type != "searchset")
       ) {
         throw new Error(
           `A Search checking for encounters for ${practIdToMerge} failed to return a searchset`,
         );
       }
+
+      // returns fhir search bundle of PractitionerRole where the practitioner is a participant
+      const practitionerRoleSearchBundle = await fetchPractitionerRoleBundle(
+        headers,
+        practIdToMerge,
+      );
+      if (
+        !practitionerRoleSearchBundle.type ||
+        (practitionerRoleSearchBundle.type &&
+          practitionerRoleSearchBundle.type != "searchset")
+      ) {
+        throw new Error(
+          `A Search checking for PractitionerRoles for ${practIdToMerge} failed to return a searchset`,
+        );
+      }
+
       if (!safety) {
         if (
           encounterSearchBundle.entry &&
@@ -150,7 +167,24 @@ async function mergePractitioners() {
           }
         } else {
           console.log(
-            `No encounters found for ${practIdToMerge} - moving straight to Practitioner deletion.`,
+            `No encounters found for ${practIdToMerge} - checking PractitionerRoles...`,
+          );
+        }
+        if (
+          practitionerRoleSearchBundle.entry &&
+          practitionerRoleSearchBundle.entry.length > 0
+        ) {
+          for (const practitionerRoleItem of practitionerRoleSearchBundle.entry) {
+            await updatePractitionerRoleReferences(
+              headers,
+              practitionerRoleItem,
+              practIdToMerge,
+              practIdToKeep,
+            );
+          }
+        } else {
+          console.log(
+            `No practitionerRoles found for ${practIdToMerge} - moving on to Practitioner deletion.`,
           );
         }
         await deletePractitioner(headers, practIdToMerge);
@@ -160,8 +194,13 @@ async function mergePractitioners() {
         } else {
           var encCount = 0;
         }
+        if (practitionerRoleSearchBundle.entry) {
+          var pracRoleCount = practitionerRoleSearchBundle.entry.length;
+        } else {
+          var pracRoleCount = 0;
+        }
         console.log(
-          `Running this script would have updated ${encCount} encounter(s) before deleting Practitioner resource ${practIdToMerge}`,
+          `Running this script would have updated ${encCount} encounter(s) and ${pracRoleCount} PractitionerRole(s) before deleting Practitioner resource ${practIdToMerge}`,
         );
       }
     }
@@ -225,6 +264,25 @@ async function fetchEncounterBundle(headers, practitionerIdToMerge) {
 
   return encounterSearchResponse.json();
 }
+async function fetchPractitionerRoleBundle(headers, practitionerIdToMerge) {
+  const practitionerRoleSearchUrl = `${baseUrl.replace(/\/+$/, "")}/PractitionerRole?practitioner=${practitionerIdToMerge}`;
+  console.log(`Calling ${practitionerRoleSearchUrl} with type "GET"`);
+
+  const practitionerRoleSearchResponse = await fetch(
+    practitionerRoleSearchUrl,
+    {
+      headers,
+    },
+  );
+
+  if (!practitionerRoleSearchResponse.ok) {
+    throw new Error(
+      `Error fetching PractitionerRole for practitioner ${practitionerIdToMerge} - ${practitionerRoleSearchResponse.status} ${practitionerRoleSearchResponse.statusText}`,
+    );
+  }
+
+  return practitionerRoleSearchResponse.json();
+}
 
 async function updateEncounterReferences(
   headers,
@@ -271,6 +329,48 @@ async function updateEncounterReferences(
 
   console.log(
     `Updated encounter ${encounterId} to point from practitioner ${practitionerIdToMerge} to practitioner ${practitionerIdToKeep}: ${updateResponse.status} ${updateResponse.statusText}`,
+  );
+}
+async function updatePractitionerRoleReferences(
+  headers,
+  practitioneRoleItem,
+  practitionerIdToMerge,
+  practitionerIdToKeep,
+) {
+  const practitioneRoleId = practitioneRoleItem.resource?.id;
+  if (!practitioneRoleId) {
+    return;
+  }
+
+  const practitioner = Array.isArray(practitioneRoleItem.resource?.practitioner)
+    ? encounterItem.resource.practitioner
+    : [];
+
+  const updatedPractitionerRole = {
+    ...practitioneRoleItem.resource,
+    practitioner: practitioner.map((practitioner) => {
+      if (practitioner.reference === `Practitioner/${practitionerIdToMerge}`) {
+        return {
+          ...practitioner,
+          reference: `Practitioner/${practitionerIdToKeep}`,
+        };
+      }
+      return practitioner;
+    }),
+  };
+
+  const updatePractitionerRoleUrl = `${baseUrl.replace(/\/+$/, "")}/PractitionerRole/${practitioneRoleId}`;
+  const updateResponse = await fetch(updatePractitionerRoleUrl, {
+    method: "PUT",
+    headers: {
+      ...headers,
+      "Content-Type": "application/fhir+json",
+    },
+    body: JSON.stringify(updatedPractitionerRole),
+  });
+
+  console.log(
+    `Updated PractitionerRole ${practitioneRoleId} to point from practitioner ${practitionerIdToMerge} to practitioner ${practitionerIdToKeep}: ${updateResponse.status} ${updateResponse.statusText}`,
   );
 }
 
