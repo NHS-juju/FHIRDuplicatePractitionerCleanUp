@@ -10,7 +10,7 @@
  * @summary Script to delete duplicate Practitioners, with steps to clean up encounters to enable this.
  * @author Julian Matthews <Julian.Matthews@SomersetFT.NHS.UK>
  *
- */
+ **/
 
 // declare the args in play for this script
 const supportedArgs = ["-baseurl", "-token", "-professionalid", "-safety"];
