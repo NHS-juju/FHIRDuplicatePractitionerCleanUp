@@ -46,7 +46,7 @@ node src/duplicatePractitionerCleanUp.js -baseUrl https://path.to/fhir -professi
 Or with a nursing PIN:
 
 ```bash
-node src/duplicatePractitionerCleanUp.js -baseUrl https://path.to/fhir -professionalId C1234567 -token TmVyZA==
+node src/duplicatePractitionerCleanUp.js -baseUrl https://path.to/fhir -professionalId 26A1234Z -token TmVyZA==
 ```
 
 And with the safety on:
