@@ -265,7 +265,10 @@ function getEligblePractitionerIds(practitionerBundle) {
       .filter((entry) => entry.resource?.id)
       .filter((entry) => {
         const identifiers = entry.resource?.identifier ?? [];
-        return identifiers.some((identifier) => identifier.use === "usual");
+        return identifiers.some(
+          (identifier) =>
+            identifier.use === "usual" && identifier.value === professionalID,
+        );
       })
       .map((entry) => entry.resource.id)
       .sort((a, b) => a - b);
