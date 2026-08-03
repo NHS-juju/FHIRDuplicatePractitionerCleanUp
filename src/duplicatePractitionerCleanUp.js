@@ -1,22 +1,21 @@
 /**
  * FHIR Duplicate Practitioner Cleanup Tool
  *
- * Unofficial script written to:
- * * Check a given professional code for duplicate practitioner entries
- * * Identify Encounter and PractitionerRole resources associated with the duplicated practitioner
- * * Update the affected Encounter and PractitionerRole resources so that they reference the practitioner being kept
- * * Deletes the duplicate Practitioner
- *
- * @summary Script to delete duplicate Practitioners, with steps to clean up relevant Encounter and PractitionerRole resources to enable this.
- * @author Julian Matthews <Julian.Matthews@SomersetFT.NHS.UK>
+ * Please see https://github.com/NHS-juju/FHIRDuplicatePractitionerCleanUp for latest version and description
  *
  **/
 
 // declare the args in play for this script
-const supportedArgs = ["-baseurl", "-token", "-professionalid", "-safety"];
+const supportedArgs = [
+  "-baseurl",
+  "-token",
+  "-professionalid",
+  "-degree",
+  "-safety",
+];
 
 // match values from process.argv to the supported args and assign them to the corresponding variables
-var baseUrl, token, professionalID, safety;
+var baseUrl, token, professionalID, safety, degree;
 process.argv.forEach((arg, index) => {
   //Skip the first two args (node and script path)
   if (index > 1) {
@@ -38,6 +37,9 @@ process.argv.forEach((arg, index) => {
         case "-safety":
           safety = 1;
           break;
+        case "-degree":
+          degree = value;
+          break;
       }
     }
   }
@@ -55,6 +57,22 @@ if (!baseUrl || !token || !professionalID) {
 if (safety) {
   console.log("Safety Flag Set!");
   console.log("Script will not alter or remove any Resources!");
+}
+
+// if degree not set, explictly call this out to the user, as this is a mandatory argument
+if (!degree) {
+  console.error(
+    "Error: degree not set. Please either set this to 'usual' or 'all'.",
+  );
+  process.exit(1);
+}
+
+// if degree is set to an unexpected value, quit out
+if (degree != "all" || degree != "usual") {
+  console.error(
+    "Error: unexpected value provided for degree parameter, please try again.",
+  );
+  process.exit(1);
 }
 
 // Validate that professionalID is a valid consultant ID (C + 7 numbers) or a valid nmc nursing pin (two digits, a letter, 4 digits, and a letter)
@@ -100,8 +118,8 @@ async function mergePractitioners() {
       "Checking if there are enough eligible Practitioner resources returned in the search...",
     );
 
-    // returns array of practitioner ids that have identifier.use === "usual", sorted by size
-    const practArray = getUsualPractitionerIds(practitionerBundle);
+    // returns array of practitioner ids are eligble for merge, sorted by size
+    const practArray = getEligblePractitionerIds(practitionerBundle);
 
     // quit if we are left with 1 or 0 eligble practitioners to merge
     if (practArray.length < 2) {
@@ -112,7 +130,7 @@ async function mergePractitioners() {
     }
 
     // keep the first ID and merge the rest - the first ID in the array will always be the smallest number as
-    // the getUsualPractitionerIds() function sorts before returning a value, so technically oldest.
+    // the getEligblePractitionerIds() function sorts before returning a value, so technically oldest.
     const practIdToKeep = practArray[0];
     console.log(`Keeping ${practIdToKeep}!`);
 
@@ -237,15 +255,50 @@ async function fetchPractitionerBundle(headers, professionalId) {
   return practitionerSearchResponse.json();
 }
 
-function getUsualPractitionerIds(practitionerBundle) {
-  return (practitionerBundle.entry ?? [])
-    .filter((entry) => entry.resource?.id)
-    .filter((entry) => {
-      const identifiers = entry.resource?.identifier ?? [];
-      return identifiers.some((identifier) => identifier.use === "usual");
-    })
-    .map((entry) => entry.resource.id)
-    .sort((a, b) => a - b);
+function getEligblePractitionerIds(practitionerBundle) {
+  // If the var degree is set to "usual", filter the practitionerBundle to only include practitioners with an identifier.use of "usual"
+  if (degree === "usual") {
+    console.log(
+      "Filtering practitioners to only include those with an identifier.use of 'usual'...",
+    );
+    return (practitionerBundle.entry ?? [])
+      .filter((entry) => entry.resource?.id)
+      .filter((entry) => {
+        const identifiers = entry.resource?.identifier ?? [];
+        return identifiers.some((identifier) => identifier.use === "usual");
+      })
+      .map((entry) => entry.resource.id)
+      .sort((a, b) => a - b);
+  }
+
+  if (degree === "all") {
+    console.log(
+      "Filtering practitioners to include all practitioners where the array of identifiers match the first entry in the array...",
+    );
+    // we now need to take the first entry in the array and then compare the rest of the entries to ensure they have the same identifiers.
+    // If they do, we can add them to the list of eligble practitioner ids to merge.
+    return (practitionerBundle.entry ?? [])
+      .filter((entry) => entry.resource?.id)
+      .filter((entry, index, array) => {
+        if (index === 0) {
+          return true;
+        }
+        const firstEntryIdentifiers = array[0].resource?.identifier ?? [];
+        const currentEntryIdentifiers = entry.resource?.identifier ?? [];
+        if (firstEntryIdentifiers.length !== currentEntryIdentifiers.length) {
+          return false;
+        }
+        return firstEntryIdentifiers.every((firstIdentifier) =>
+          currentEntryIdentifiers.some(
+            (currentIdentifier) =>
+              firstIdentifier.system === currentIdentifier.system &&
+              firstIdentifier.value === currentIdentifier.value,
+          ),
+        );
+      })
+      .map((entry) => entry.resource.id)
+      .sort((a, b) => a - b);
+  }
 }
 
 async function fetchEncounterBundle(headers, practitionerIdToMerge) {
